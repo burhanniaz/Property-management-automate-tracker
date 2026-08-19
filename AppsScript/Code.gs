@@ -1,5 +1,15 @@
 /**
- * Property Management Tracker — Dashboard API
+ * Property Management Tracker — Dashboard API (OPTIONAL)
+ *
+ * The primary integration path is the Google Sheets API directly:
+ * spreadsheets.values.batchGet accepts the KPI_*/PM_Workload_Table
+ * named range names as its `ranges` params, so most backends don't
+ * need this script at all. Keep this deployed only if some other,
+ * non-backend consumer (a quick script, a no-code tool) wants a
+ * single plain-JSON GET instead of Sheets API auth. See
+ * n8n/property-tracker-heartbeat.json for the piece every consumer
+ * still needs regardless of read method: a scheduled write that keeps
+ * TODAY()-based KPIs recalculating.
  *
  * Exposes every named range in this spreadsheet (see the "KPI_*" and
  * "PM_Workload_Table" names created by build_dashboard.py) as JSON over

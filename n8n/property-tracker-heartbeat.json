@@ -1,0 +1,68 @@
+{
+  "name": "Property Tracker — Force Recalculation (Heartbeat)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Setup — 2 things to replace before activating\n\n1. Replace `YOUR_SPREADSHEET_ID` in the URL with the Google Sheet's file ID (the long string in its URL between `/d/` and `/edit`).\n2. Attach your own Google Sheets OAuth2 credential (Predefined Credential Type). It needs edit access to the sheet.\n\nWhat this does every 1 minute:\n- Writes the current timestamp into the Dashboard's `Heartbeat_Cell` (C6). That edit forces Google Sheets to recalculate every formula, including the TODAY()-based ones (Leasing Pipeline / Growth sections) that otherwise only refresh on open or on Sheets' own periodic auto-recalc.\n\nThis workflow only keeps the sheet's computed values fresh — it doesn't fetch or send data anywhere. Your backend reads the KPI_*/PM_Workload_Table named ranges directly via the Sheets API (spreadsheets.values.batchGet, passing the named range names as the `ranges` params) whenever it needs the current numbers; by the time it calls, this heartbeat has already made sure the sheet has recalculated within the last minute.\n\n(AppsScript/Code.gs in this repo is still available as an optional plain-JSON endpoint if some other, non-backend consumer ever wants a simple GET — it's just no longer part of this workflow.)",
+        "height": 440,
+        "width": 460
+      },
+      "id": "sticky-setup",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, -60]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 1 Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [280, 180]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/YOUR_SPREADSHEET_ID/values/Dashboard!C6?valueInputOption=RAW",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ range: \"Dashboard!C6\", majorDimension: \"ROWS\", values: [[ $now.toISO() ]] }) }}",
+        "options": {}
+      },
+      "id": "write-heartbeat",
+      "name": "Write Heartbeat (Sheets API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 180]
+    }
+  ],
+  "connections": {
+    "Every 1 Minute": {
+      "main": [
+        [
+          {
+            "node": "Write Heartbeat (Sheets API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
