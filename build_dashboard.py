@@ -225,14 +225,18 @@ merge_banner(r, "3.  Leasing Pipeline", section_font, section_fill, height=22)
 r += 1
 table_header(r, ["Metric", "Value", "Notes"])
 r += 1
+row_expiring = {}
 for days in (30, 60, 90):
+    row_expiring[days] = r
     metric_row(r, f"Leases Expiring in Next {days} Days (Active units)",
                f'=COUNTIFS({col(PM,"I")},"Active",{col(PM,"N")},">="&$C$4,{col(PM,"N")},"<="&$C$4+{days})',
                INT, "Text/blank move-out dates are ignored automatically by COUNTIFS's numeric comparison.")
     r += 1
+row_vacant_active = r
 metric_row(r, "Vacant Units with Active PM Agreement (immediate revenue loss)",
            f'=COUNTIFS({col(PM,"H")},"Vacant",{col(PM,"I")},"Active")', INT)
 r += 1
+row_new_leases_month = r
 metric_row(r, "New Leases Signed This Month (Lease Move In)",
            f'=COUNTIFS({col(PM,"M")},">="&DATE(YEAR($C$4),MONTH($C$4),1),{col(PM,"M")},"<="&$C$4)',
            INT, "Counts PM ONLY rows whose Lease Move In date falls within the current calendar month.")
@@ -246,15 +250,19 @@ r += 1
 table_header(r, ["Metric", "Value", "Notes"])
 r += 1
 qstart = "DATE(YEAR($C$4),MONTH($C$4)-MOD(MONTH($C$4)-1,3),1)"
+row_new_owners_month = r
 metric_row(r, "New Owners Onboarded This Month (Len-Onboarded)",
            f'=COUNTIFS({col(LEN_ON,"A")},">="&DATE(YEAR($C$4),MONTH($C$4),1),{col(LEN_ON,"A")},"<="&$C$4)', INT)
 r += 1
+row_new_owners_quarter = r
 metric_row(r, "New Owners Onboarded This Quarter (Len-Onboarded)",
            f'=COUNTIFS({col(LEN_ON,"A")},">="&{qstart},{col(LEN_ON,"A")},"<="&$C$4)', INT)
 r += 1
+row_new_units_month = r
 metric_row(r, "New Units Added This Month (Management Agreement Date)",
            f'=COUNTIFS({col(PM,"A")},">="&DATE(YEAR($C$4),MONTH($C$4),1),{col(PM,"A")},"<="&$C$4)', INT)
 r += 1
+row_new_units_quarter = r
 metric_row(r, "New Units Added This Quarter (Management Agreement Date)",
            f'=COUNTIFS({col(PM,"A")},">="&{qstart},{col(PM,"A")},"<="&$C$4)', INT)
 r += 2
@@ -266,24 +274,30 @@ merge_banner(r, "5.  Data Health (needs manual cleanup)", section_font, section_
 r += 1
 table_header(r, ["Metric", "Value", "Notes"])
 r += 1
+row_invalid_mgmt_date_pm = r
 metric_row(r, 'PM ONLY — Invalid/Non-Date "Management Agreement Date" entries',
            f'=SUMPRODUCT(({col(PM,"A")}<>"")*(ISNUMBER({col(PM,"A")})=FALSE))', INT,
            'E.g. literal "???" placeholders. Excluded automatically from all date-based KPIs above; still needs manual correction at the source.')
 r += 1
+row_invalid_movein_pm = r
 metric_row(r, 'PM ONLY — Invalid/Non-Date "Lease Move In" entries',
            f'=SUMPRODUCT(({col(PM,"M")}<>"")*(ISNUMBER({col(PM,"M")})=FALSE))', INT,
            'E.g. a free-text date such as "Sept 01, 2026" instead of a real date value.')
 r += 1
+row_invalid_mgmt_date_lo = r
 metric_row(r, 'LEASE ONLY — Invalid/Non-Date "Management Agreement Date" entries',
            f'=SUMPRODUCT(({col(LO,"A")}<>"")*(ISNUMBER({col(LO,"A")})=FALSE))', INT,
            'E.g. a mistyped year such as "February 19, 0206".')
 r += 1
+row_missing_tenant_name = r
 metric_row(r, "Occupied Units Missing Tenant Name",
            f'=SUMPRODUCT(({col(PM,"H")}="Occupied")*({col(PM,"J")}=""))', INT)
 r += 1
+row_missing_email = r
 metric_row(r, "Occupied Units Missing Email",
            f'=SUMPRODUCT(({col(PM,"H")}="Occupied")*({col(PM,"K")}=""))', INT)
 r += 1
+row_missing_phone = r
 metric_row(r, "Occupied Units Missing Phone Number",
            f'=SUMPRODUCT(({col(PM,"H")}="Occupied")*({col(PM,"L")}=""))', INT)
 r += 2
@@ -307,6 +321,86 @@ for note in notes:
     ws.row_dimensions[r].height = 26
     r += 1
 
+# =========================================================
+# Named ranges — stable handles for the Google Sheets API /
+# Apps Script (survive Dashboard layout edits; a defined name
+# is a level of indirection an API consumer can rely on
+# instead of hardcoding cell coordinates).
+# =========================================================
+from openpyxl.workbook.defined_name import DefinedName
+
+named_cells = {
+    "KPI_ReportDate": 4,
+    "KPI_GSTRate": 5,
+    "KPI_TotalUnits": row_total_units,
+    "KPI_ActiveUnits": row_active,
+    "KPI_TerminatedUnits": row_terminated,
+    "KPI_OccupiedUnits": row_occupied,
+    "KPI_VacantUnits": row_vacant,
+    "KPI_TakeOverUnits": row_takeover,
+    "KPI_OccupancyRate": row_occ_rate,
+    "KPI_RentRoll_PMOnly": 31,
+    "KPI_RentRoll_LeaseOnly": 32,
+    "KPI_MgmtFeeRevenue_ExclGST": row_mgmt_fee,
+    "KPI_MgmtFeeRevenue_InclGST_Est": row_mgmt_fee + 1,
+    "KPI_LeasingFeeRevenue_ExclGST_PMOnly": row_mgmt_fee + 2,
+    "KPI_LeasingFeeRevenue_InclGST_LeaseOnly": row_mgmt_fee + 3,
+    "KPI_OwnerDisbursements_PMOnly": row_disb_pm,
+    "KPI_OwnerDisbursements_LeaseOnly": row_disb_lo,
+    "KPI_OwnerDisbursements_Combined": row_disb_lo + 1,
+    "KPI_AncillaryIncome_PetFee": row_disb_lo + 2,
+    "KPI_AncillaryIncome_Parking": row_disb_lo + 3,
+    "KPI_AncillaryIncome_Storage": row_disb_lo + 4,
+    "KPI_LeasesExpiring30d": row_expiring[30],
+    "KPI_LeasesExpiring60d": row_expiring[60],
+    "KPI_LeasesExpiring90d": row_expiring[90],
+    "KPI_VacantActiveUnits": row_vacant_active,
+    "KPI_NewLeasesThisMonth": row_new_leases_month,
+    "KPI_NewOwnersThisMonth": row_new_owners_month,
+    "KPI_NewOwnersThisQuarter": row_new_owners_quarter,
+    "KPI_NewUnitsThisMonth": row_new_units_month,
+    "KPI_NewUnitsThisQuarter": row_new_units_quarter,
+    "KPI_InvalidMgmtAgreementDate_PMOnly": row_invalid_mgmt_date_pm,
+    "KPI_InvalidLeaseMoveIn_PMOnly": row_invalid_movein_pm,
+    "KPI_InvalidMgmtAgreementDate_LeaseOnly": row_invalid_mgmt_date_lo,
+    "KPI_OccupiedMissingTenantName": row_missing_tenant_name,
+    "KPI_OccupiedMissingEmail": row_missing_email,
+    "KPI_OccupiedMissingPhone": row_missing_phone,
+}
+
+# Sanity-check every hardcoded/offset row against its actual label before
+# naming it, so a layout change trips a loud error instead of silently
+# naming the wrong cell.
+expected_labels = {
+    31: "Total Monthly Rent Roll (PM ONLY)",
+    32: "Total Monthly Rent Roll (LEASE ONLY, supplemental)",
+    row_mgmt_fee + 1: "Total Management Fee Revenue, incl. GST (estimated)",
+    row_mgmt_fee + 2: "Total Leasing Fee Revenue, excl. GST (PM ONLY)",
+    row_mgmt_fee + 3: "Total Leasing Fee Revenue, incl. GST (LEASE ONLY)",
+    row_disb_lo + 1: "Combined Total Owner Disbursements",
+    row_disb_lo + 2: "Ancillary Income — Pet Fee (PM ONLY)",
+    row_disb_lo + 3: "Ancillary Income — Parking (PM ONLY)",
+    row_disb_lo + 4: "Ancillary Income — Storage (PM ONLY)",
+}
+for row_num, expected in expected_labels.items():
+    actual = ws.cell(row=row_num, column=2).value
+    assert actual == expected, f"Row {row_num} label mismatch: expected {expected!r}, got {actual!r}"
+
+# Drop any named ranges from a previous build before re-adding them.
+for existing_name in list(wb.defined_names.keys()):
+    if existing_name.startswith("KPI_") or existing_name == "PM_Workload_Table":
+        del wb.defined_names[existing_name]
+
+for name, row_num in named_cells.items():
+    wb.defined_names[name] = DefinedName(name, attr_text=f"'Dashboard'!$C${row_num}")
+
+# Whole PM-workload table (header row + all PM rows) as one named range,
+# for API consumers that want the full breakdown in one range read.
+wb.defined_names["PM_Workload_Table"] = DefinedName(
+    "PM_Workload_Table", attr_text=f"'Dashboard'!$B${pm_table_start - 1}:$E${pm_table_end}"
+)
+
 wb.save(SRC)
 print("Dashboard sheet written. Last row used:", r)
 print("PM table rows:", pm_table_start, "-", pm_table_end)
+print("Named ranges defined:", len(named_cells) + 1)
