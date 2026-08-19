@@ -65,7 +65,7 @@ function doGet(e) {
       // Skip anything not produced by build_dashboard.py (e.g. stray
       // legacy names already present in the workbook).
       var name = nr.getName();
-      if (name.indexOf("KPI_") !== 0 && name !== "PM_Workload_Table") {
+      if (name.indexOf("KPI_") !== 0 && name !== "PM_Workload_Table" && name !== "Heartbeat_Cell") {
         return;
       }
       result[name] = readRange_(nr.getRange());

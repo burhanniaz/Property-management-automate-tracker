@@ -125,6 +125,18 @@ ws["C5"].border = box_border
 set_cell("D5", "Input cell — edit if GST rate changes. PM ONLY's own 'TOTAL FEES WITH GST' column is blank in the source data, so this rate is used to estimate GST-inclusive management-fee revenue below.",
          font=note_font, align=Alignment(wrap_text=True, vertical="center"))
 
+row_heartbeat = 6
+set_cell(f"B{row_heartbeat}", "Heartbeat (auto-refresh timestamp)", font=assumption_head_font)
+set_cell(f"C{row_heartbeat}", None, font=input_font, fill=input_fill,
+         align=Alignment(horizontal="right"))
+ws[f"C{row_heartbeat}"].border = box_border
+set_cell(f"D{row_heartbeat}",
+         "Written by an external scheduler (e.g. n8n) on a timer. Google Sheets only recalculates "
+         "TODAY()-based formulas (the Leasing Pipeline and Growth sections) on open, on edit, or on its own "
+         "periodic auto-recalc — writing any value here counts as an edit and forces a full recalculation, "
+         "so those KPIs stay fresh even if no human opens the sheet. Named range: Heartbeat_Cell.",
+         font=note_font, align=Alignment(wrap_text=True, vertical="center"))
+
 # =========================================================
 # SECTION 1 — Portfolio Overview
 # =========================================================
@@ -332,6 +344,7 @@ from openpyxl.workbook.defined_name import DefinedName
 named_cells = {
     "KPI_ReportDate": 4,
     "KPI_GSTRate": 5,
+    "Heartbeat_Cell": row_heartbeat,
     "KPI_TotalUnits": row_total_units,
     "KPI_ActiveUnits": row_active,
     "KPI_TerminatedUnits": row_terminated,
@@ -388,7 +401,7 @@ for row_num, expected in expected_labels.items():
 
 # Drop any named ranges from a previous build before re-adding them.
 for existing_name in list(wb.defined_names.keys()):
-    if existing_name.startswith("KPI_") or existing_name == "PM_Workload_Table":
+    if existing_name.startswith("KPI_") or existing_name in ("PM_Workload_Table", "Heartbeat_Cell"):
         del wb.defined_names[existing_name]
 
 for name, row_num in named_cells.items():
